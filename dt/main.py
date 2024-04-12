@@ -41,7 +41,7 @@ class EditableText(flet.Row):
         self.page.update
 
 
-class RecordTile(flet.Card):
+class NameTile(flet.Card):
     def __init__(self, name="Anon"):
         super().__init__()
         self.content = flet.Container(
@@ -194,7 +194,7 @@ class RecordTile(flet.Card):
             self.page.go(f"/{self.id}")
 
 
-class RecordList(flet.ListView):
+class NameList(flet.ListView):
     def __init__(self, route_manager: RouteManager):
         super().__init__(expand=True, spacing=20)
 
@@ -202,14 +202,14 @@ class RecordList(flet.ListView):
 
     def add_record(self, name: str):
         self.auto_scroll = True
-        tile = RecordTile(name)
+        tile = NameTile(name)
         self.controls.append(tile)
         self.route_manager.add_route(tile.view.route, tile.view)
         if self.page:
             self.page.update()
         self.auto_scroll = False
 
-    def remove_record(self, tile: RecordTile):
+    def remove_record(self, tile: NameTile):
         self.page.overlay.append(flet.ProgressRing())
         self.page.update()
         self.controls.remove(tile)
@@ -223,7 +223,7 @@ class RecordList(flet.ListView):
 async def main(page: flet.Page):
     page.theme_mode = flet.ThemeMode.DARK
     route_manager = RouteManager(page)
-    test = RecordList(route_manager)
+    test = NameList(route_manager)
     testView = flet.View(
         "/",
         [test],
