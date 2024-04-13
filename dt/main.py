@@ -1,10 +1,14 @@
+import logging
 from decimal import Decimal
+from typing import Callable
 from uuid import UUID, uuid4
 
 import flet
 from flet.fastapi.flet_fastapi import FastAPI
 
 from .routing import RouteManager
+
+logging.basicConfig(level=logging.DEBUG)
 
 
 class EditableText(flet.Row):
@@ -130,7 +134,7 @@ class NameTile(flet.Card):
 
         self.deleteButton = flet.ElevatedButton(
             "Delete",
-            on_click=lambda e: self.parent.remove_record(self),
+            on_click=lambda e: self.parent.remove_name(self),
             icon=flet.icons.DELETE_FOREVER,
             bgcolor=flet.colors.TERTIARY_CONTAINER,
             color=flet.colors.ON_TERTIARY_CONTAINER,
@@ -213,45 +217,69 @@ class NameList(flet.ListView):
 
         self.route_manager: RouteManager = route_manager
 
-    def add_record(self, name: str):
-        self.auto_scroll = True
+    def loading_animation(func: Callable):
+        def add_loading(self, *args, **kwargs):
+            self.auto_scroll = True
+            self.page.overlay.append(
+                flet.Container(
+                    content=flet.ProgressRing(),
+                    bgcolor=flet.colors.with_opacity(
+                        color=flet.colors.BLACK, opacity=0.5
+                    ),
+                    expand=True,
+                    alignment=flet.alignment.center,
+                )
+            )
+            self.page.update()
+
+            func(self, *args, **kwargs)
+
+            self.page.overlay.clear()
+            self.page.update()
+            self.auto_scroll = False
+
+        return add_loading
+
+    @loading_animation
+    def add_name(self, name: str):
         tile = NameTile(name)
         self.controls.append(tile)
         self.route_manager.add_route(tile.view.route, tile.view)
-        if self.page:
-            self.page.update()
-        self.auto_scroll = False
 
-    def remove_record(self, tile: NameTile):
-        self.page.overlay.append(flet.ProgressRing())
-        self.page.update()
+    @loading_animation
+    def remove_name(self, tile: NameTile):
         self.controls.remove(tile)
         self.route_manager.remove_route(tile.view.route)
         del tile.view
         del tile
-        self.page.overlay.clear()
-        self.page.update()
+
+
+class NameView(flet.View):
+    def __init__(self, route: str, route_manager: RouteManager, appbar_title: str):
+        super().__init__(route=route, appbar=flet.AppBar(title=flet.Text(appbar_title)))
+
+        self.floating_action_button = flet.FloatingActionButton(
+            "add", on_click=self.add_name
+        )
+
+        self.route_manager: RouteManager = route_manager
+        self.route_manager.base_view = self
+        self.list = NameList(self.route_manager)
+
+        self.controls.append(self.list)
+
+    async def add_name(self, e):
+        self.list.add_name("Anon")
 
 
 async def main(page: flet.Page):
     page.theme_mode = flet.ThemeMode.DARK
     route_manager = RouteManager(page)
-    test = NameList(route_manager)
-    testView = flet.View(
-        "/",
-        [test],
-        appbar=flet.AppBar(title=flet.Text("Debt Machine")),
-        floating_action_button=flet.FloatingActionButton(
-            "add", on_click=lambda e: test.add_record("anon")
-        ),
-    )
+    testView = NameView("/", route_manager, "Debt Machine")
     page.views.clear()
-    route_manager.base_view = testView
-    page.on_route_change = route_manager.on_route_change
-    page.on_view_pop = route_manager.on_view_pop
+    page.on_route_change = testView.route_manager.on_route_change
+    page.on_view_pop = testView.route_manager.on_view_pop
     page.go(page.route)
-
-    test.add_record("Anon1")
 
 
 app: FastAPI | None = flet.app(main, export_asgi_app=True)
