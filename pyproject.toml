@@ -1,9 +1,5 @@
 [tool.poetry]
-name = "dt"
-version = "0.1.0"
-description = ""
-authors = ["adikpb <67222969+adikpb@users.noreply.github.com>"]
-readme = "README.md"
+package-mode = false
 
 [tool.poetry.dependencies]
 python = "^3.12"

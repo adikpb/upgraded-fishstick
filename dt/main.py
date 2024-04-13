@@ -4,22 +4,34 @@ from uuid import UUID, uuid4
 import flet
 from flet.fastapi.flet_fastapi import FastAPI
 
-from dt.routing import RouteManager
+from .routing import RouteManager
 
 
 class EditableText(flet.Row):
-    def __init__(self, theme_style: flet.TextThemeStyle, value: str = None, **kwargs):
-        super().__init__()
-        self.alignment = flet.MainAxisAlignment.CENTER
-        self.spacing = 0
+    def __init__(
+        self,
+        obj: flet.Control,
+        value_attribute: str,
+        text_theme_style: flet.TextThemeStyle,
+        text_style: flet.TextStyle,
+        **kwargs,
+    ):
+        super().__init__(alignment=flet.MainAxisAlignment.CENTER, spacing=0)
 
-        self.label = flet.Text(value=value, theme_style=theme_style, **kwargs)
+        self.obj: flet.Control = obj
+        self.value_attribute: str = value_attribute
+
+        self.label = flet.Text(
+            value=getattr(self.obj, self.value_attribute, None),
+            theme_style=text_theme_style,
+            **kwargs,
+        )
         self.entry = flet.TextField(
-            value=self.label.value,
+            value=getattr(self.obj, self.value_attribute, None),
             dense=True,
             on_submit=self.change_text,
             content_padding=0,
-            text_style=theme_style,
+            text_style=text_style,
         )
         self.action_button = flet.IconButton(
             icon=flet.icons.EDIT, on_click=self.edit_text
@@ -30,15 +42,15 @@ class EditableText(flet.Row):
         self.action_button.icon = flet.icons.CHECK
         self.action_button.on_click = self.change_text
         self.controls[0] = self.entry
-        self.update
+        self.update()
 
     def change_text(self, e):
         self.action_button.icon = flet.icons.EDIT
         self.action_button.on_click = self.edit_text
         self.label.value = self.entry.value.strip()
-        self.parent_pointer.value = self.entry.value.strip()
+        setattr(self.obj, self.value_attribute, self.entry.value.strip())
         self.controls[0] = self.label
-        self.page.update
+        self.update()
 
 
 class NameTile(flet.Card):
@@ -55,11 +67,15 @@ class NameTile(flet.Card):
 
         self.id: UUID = uuid4()
 
+        self.name: str = name
         self.nameText = flet.Container(
             content=flet.Column(
                 [
-                    flet.Text(
-                        theme_style=flet.TextThemeStyle.TITLE_LARGE,
+                    EditableText(
+                        self,
+                        "name",
+                        text_theme_style=flet.TextThemeStyle.TITLE_LARGE,
+                        text_style=flet.TextStyle(22.5),
                         no_wrap=True,
                     )
                 ],
@@ -70,8 +86,6 @@ class NameTile(flet.Card):
             border_radius=5,
             col={},
         )
-        # Sets value in nameText too
-        self.name: str = name
 
         self.transactionSummary = flet.Container(
             content=flet.Column(
@@ -151,16 +165,15 @@ class NameTile(flet.Card):
         )
 
     @property
-    def name(self):
+    def name(self) -> str:
         return self._name
 
     @name.setter
     def name(self, val: str):
         self._name: str = val
-        self.nameText.content.controls[0].value = val
 
     @property
-    def money_you_owe(self):
+    def money_you_owe(self) -> Decimal:
         return self._money_you_owe
 
     @money_you_owe.setter
@@ -175,7 +188,7 @@ class NameTile(flet.Card):
         )
 
     @property
-    def money_they_owe(self):
+    def money_they_owe(self) -> Decimal:
         return self._money_they_owe
 
     @money_they_owe.setter
@@ -238,8 +251,7 @@ async def main(page: flet.Page):
     page.on_view_pop = route_manager.on_view_pop
     page.go(page.route)
 
-    for i in range(500):
-        test.add_record("Anon1")
+    test.add_record("Anon1")
 
 
-app: FastAPI | None = flet.app(main)
+app: FastAPI | None = flet.app(main, export_asgi_app=True)
