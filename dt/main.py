@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from decimal import Decimal
 from typing import Callable
@@ -79,7 +80,7 @@ class NameTile(flet.Card):
                         self,
                         "name",
                         text_theme_style=flet.TextThemeStyle.TITLE_LARGE,
-                        text_style=flet.TextStyle(22.5),
+                        text_style=flet.TextStyle(22),
                         no_wrap=True,
                     )
                 ],
@@ -134,7 +135,7 @@ class NameTile(flet.Card):
 
         self.deleteButton = flet.ElevatedButton(
             "Delete",
-            on_click=lambda e: self.parent.remove_name(self),
+            on_click=lambda e: self.page.run_task(self.parent.remove_name, self),
             icon=flet.icons.DELETE_FOREVER,
             bgcolor=flet.colors.TERTIARY_CONTAINER,
             color=flet.colors.ON_TERTIARY_CONTAINER,
@@ -218,8 +219,7 @@ class NameList(flet.ListView):
         self.route_manager: RouteManager = route_manager
 
     def loading_animation(func: Callable):
-        def add_loading(self, *args, **kwargs):
-            self.auto_scroll = True
+        async def add_loading(self, *args, **kwargs):
             self.page.overlay.append(
                 flet.Container(
                     content=flet.ProgressRing(),
@@ -232,26 +232,31 @@ class NameList(flet.ListView):
             )
             self.page.update()
 
-            func(self, *args, **kwargs)
+            await func(self, *args, **kwargs)
 
             self.page.overlay.clear()
             self.page.update()
-            self.auto_scroll = False
 
         return add_loading
 
     @loading_animation
-    def add_name(self, name: str):
+    async def add_name(self, name: str):
+        self.auto_scroll = True
         tile = NameTile(name)
         self.controls.append(tile)
         self.route_manager.add_route(tile.view.route, tile.view)
+        self.parent.update()
+        self.auto_scroll = False
+        await asyncio.sleep(0.25)
 
     @loading_animation
-    def remove_name(self, tile: NameTile):
+    async def remove_name(self, tile: NameTile):
         self.controls.remove(tile)
         self.route_manager.remove_route(tile.view.route)
         del tile.view
         del tile
+        self.parent.update()
+        await asyncio.sleep(0.25)
 
 
 class NameView(flet.View):
@@ -269,7 +274,26 @@ class NameView(flet.View):
         self.controls.append(self.list)
 
     async def add_name(self, e):
-        self.list.add_name("Anon")
+        async def close_dialog(e):
+            if dlg_modal.content.value.strip():
+                self.page.dialog.open = False
+                self.page.update()
+                await self.list.add_name(dlg_modal.content.value.strip())
+
+        dlg_modal = flet.AlertDialog(
+            # modal=True,
+            title=flet.Text("Enter Name"),
+            content=flet.TextField(
+                input_filter=flet.InputFilter(r"[a-zA-Z ]"),
+                on_submit=close_dialog,
+                autofocus=True,
+            ),
+            actions=[flet.TextButton("Confirm", on_click=close_dialog)],
+            actions_alignment=flet.MainAxisAlignment.END,
+            open=True,
+        )
+        self.page.dialog = dlg_modal
+        self.page.update()
 
 
 async def main(page: flet.Page):
@@ -282,4 +306,4 @@ async def main(page: flet.Page):
     page.go(page.route)
 
 
-app: FastAPI | None = flet.app(main, export_asgi_app=True)
+app: FastAPI | None = flet.app(main)
