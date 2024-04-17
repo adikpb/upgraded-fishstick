@@ -35,6 +35,7 @@ class EditableText(flet.Row):
             value=getattr(self.obj, self.value_attribute, None),
             dense=True,
             on_submit=self.change_text,
+            autofocus=True,
             content_padding=0,
             text_style=text_style,
         )
@@ -58,6 +59,57 @@ class EditableText(flet.Row):
         self.update()
 
 
+class RecordList(flet.ListView):
+    def __init__(self):
+        super().__init__(expand=True)
+
+
+class RecordView(flet.View):
+    def __init__(
+        self,
+        route: str | None = None,
+        appbar: flet.AppBar | flet.CupertinoAppBar | None = None,
+    ):
+        super().__init__(
+            route=route,
+            appbar=appbar,
+            vertical_alignment=flet.MainAxisAlignment.END,
+            padding=5,
+        )
+
+        self.list = RecordList()
+        self.credit_button = flet.ElevatedButton(
+            "Credit",
+            bgcolor=flet.colors.GREEN_ACCENT,
+            color=flet.colors.BLACK,
+            style=flet.ButtonStyle(shape=flet.RoundedRectangleBorder(radius=10)),
+            expand=True,
+        )
+        self.debit_button = flet.ElevatedButton(
+            "Debit",
+            bgcolor=flet.colors.RED_ACCENT,
+            color=flet.colors.BLACK,
+            style=flet.ButtonStyle(shape=flet.RoundedRectangleBorder(radius=10)),
+            expand=True,
+        )
+
+        self.controls = [
+            self.list,
+            flet.Container(
+                content=flet.Row(
+                    [
+                        self.credit_button,
+                        self.debit_button,
+                    ],
+                ),
+                bgcolor=flet.colors.PRIMARY_CONTAINER,
+                padding=10,
+                height=50,
+                border_radius=20,
+            ),
+        ]
+
+
 class NameTile(flet.Card):
     def __init__(self, name="Anon"):
         super().__init__()
@@ -65,31 +117,26 @@ class NameTile(flet.Card):
             flet.ResponsiveRow(
                 alignment=flet.MainAxisAlignment.CENTER,
                 vertical_alignment=flet.MainAxisAlignment.CENTER,
+                spacing=0,
             ),
-            padding=10,
             on_click=self.show_details,
         )
 
         self.id: UUID = uuid4()
 
         self.name: str = name
-        self.nameText = flet.Container(
-            content=flet.Column(
-                [
-                    EditableText(
-                        self,
-                        "name",
-                        text_theme_style=flet.TextThemeStyle.TITLE_LARGE,
-                        text_style=flet.TextStyle(22),
-                        no_wrap=True,
-                    )
-                ],
-                alignment=flet.MainAxisAlignment.CENTER,
-                horizontal_alignment=flet.CrossAxisAlignment.CENTER,
-            ),
-            alignment=flet.alignment.center,
-            border_radius=5,
-            col={},
+        self.nameText = flet.Column(
+            [
+                EditableText(
+                    self,
+                    "name",
+                    text_theme_style=flet.TextThemeStyle.TITLE_LARGE,
+                    text_style=flet.TextStyle(22),
+                    no_wrap=True,
+                )
+            ],
+            alignment=flet.MainAxisAlignment.CENTER,
+            horizontal_alignment=flet.CrossAxisAlignment.CENTER,
         )
 
         self.transactionSummary = flet.Container(
@@ -109,8 +156,8 @@ class NameTile(flet.Card):
             ),
             bgcolor=flet.colors.SECONDARY_CONTAINER,
             padding=10,
+            margin=flet.margin.symmetric(horizontal=15),
             border_radius=5,
-            col={},
         )
 
         self.debtSummary = flet.Container(
@@ -125,8 +172,8 @@ class NameTile(flet.Card):
             ),
             bgcolor=flet.colors.SECONDARY_CONTAINER,
             padding=10,
+            margin=flet.margin.symmetric(horizontal=15),
             border_radius=5,
-            col={},
         )
         self.net_owed: Decimal = Decimal(0)
         # Sets text values in debtSummary too
@@ -140,33 +187,23 @@ class NameTile(flet.Card):
             bgcolor=flet.colors.TERTIARY_CONTAINER,
             color=flet.colors.ON_TERTIARY_CONTAINER,
             icon_color=flet.colors.ON_TERTIARY_CONTAINER,
+            style=flet.ButtonStyle(shape=flet.ContinuousRectangleBorder(radius=10)),
         )
 
         self.content.content.controls.extend(
             [
                 self.nameText,
-                flet.Divider(),
+                flet.Divider(leading_indent=10, trailing_indent=10),
                 self.transactionSummary,
                 self.debtSummary,
-                flet.Divider(),
+                flet.Divider(leading_indent=10, trailing_indent=10),
                 self.deleteButton,
             ]
         )
 
-        self.view = flet.View(
+        self.view = RecordView(
             "/" + str(self.id),
-            [
-                flet.Container(
-                    flet.Text(
-                        str(self.id), theme_style=flet.TextThemeStyle.TITLE_LARGE
-                    ),
-                    expand=True,
-                    alignment=flet.alignment.center,
-                )
-            ],
-            appbar=flet.AppBar(title=flet.Text("Debt Machine")),
-            vertical_alignment=flet.MainAxisAlignment.CENTER,
-            horizontal_alignment=flet.CrossAxisAlignment.CENTER,
+            appbar=flet.AppBar(title=flet.Text(self.name)),
         )
 
     @property
@@ -176,6 +213,8 @@ class NameTile(flet.Card):
     @name.setter
     def name(self, val: str):
         self._name: str = val
+        if hasattr(self, "view"):
+            self.view.appbar.title = flet.Text(val)
 
     @property
     def money_you_owe(self) -> Decimal:
@@ -208,8 +247,7 @@ class NameTile(flet.Card):
         )
 
     def show_details(self, e):
-        if self.page:
-            self.page.go(f"/{self.id}")
+        self.page.go(f"/{self.id}")
 
 
 class NameList(flet.ListView):
@@ -285,6 +323,7 @@ class NameView(flet.View):
             title=flet.Text("Enter Name"),
             content=flet.TextField(
                 input_filter=flet.InputFilter(r"[a-zA-Z ]"),
+                text_style=flet.TextStyle(22),
                 on_submit=close_dialog,
                 autofocus=True,
             ),
