@@ -1,67 +1,122 @@
 import asyncio
 import logging
+from datetime import datetime
 from decimal import Decimal
-from typing import Callable
+from typing import Callable, Literal
 from uuid import UUID, uuid4
 
 import flet
 from flet.fastapi.flet_fastapi import FastAPI
 
+from .custom_controls import EditableDisplayText, FixedPane, VerticalSplitter
 from .routing import RouteManager
 
 logging.basicConfig(level=logging.DEBUG)
 
+ALPHABETS_WITH_SPACE_RE = r"[a-zA-Z ]"
+DECIMALS_RE = r"[0-9.]"
 
-class EditableText(flet.Row):
-    def __init__(
-        self,
-        obj: flet.Control,
-        value_attribute: str,
-        text_theme_style: flet.TextThemeStyle,
-        text_style: flet.TextStyle,
-        **kwargs,
-    ):
-        super().__init__(alignment=flet.MainAxisAlignment.CENTER, spacing=0)
 
-        self.obj: flet.Control = obj
-        self.value_attribute: str = value_attribute
+class RecordTile(flet.Stack):
+    def __init__(self, type: Literal["Credit", "Debit"], title: str, description: str):
+        super().__init__()
+        self.type: Literal["Credit"] | Literal["Debit"] = type
 
-        self.label = flet.Text(
-            value=getattr(self.obj, self.value_attribute, None),
-            theme_style=text_theme_style,
-            **kwargs,
+        self.title: str = title
+        self.titleText = EditableDisplayText(
+            self,
+            "title",
+            text_theme_style=flet.TextThemeStyle.BODY_LARGE,
+            field_size=15,
+            no_wrap=True,
+            input_filter=flet.InputFilter(ALPHABETS_WITH_SPACE_RE),
         )
-        self.entry = flet.TextField(
-            value=getattr(self.obj, self.value_attribute, None),
-            dense=True,
-            on_submit=self.change_text,
-            autofocus=True,
-            content_padding=0,
-            text_style=text_style,
-        )
-        self.action_button = flet.IconButton(
-            icon=flet.icons.EDIT, on_click=self.edit_text
-        )
-        self.controls = [self.label, self.action_button]
 
-    def edit_text(self, e):
-        self.action_button.icon = flet.icons.CHECK
-        self.action_button.on_click = self.change_text
-        self.controls[0] = self.entry
-        self.update()
+        self.description: str = description
+        self.descriptionText = EditableDisplayText(
+            self,
+            "description",
+            text_theme_style=flet.TextThemeStyle.BODY_MEDIUM,
+            field_size=12,
+            no_wrap=True,
+        )
 
-    def change_text(self, e):
-        self.action_button.icon = flet.icons.EDIT
-        self.action_button.on_click = self.edit_text
-        self.label.value = self.entry.value.strip()
-        setattr(self.obj, self.value_attribute, self.entry.value.strip())
-        self.controls[0] = self.label
-        self.update()
+        self.dateCreated: datetime = datetime.now()
+        self.dateCreatedText = flet.Text(str(self.dateCreated))
+
+        self.lastUpdated: datetime = self.dateCreated
+        self.lastUpdatedText = flet.Text("Last Updated:" + str(self.lastUpdated))
+
+        self.amount = Decimal(0)
+        self.amountText = flet.Text("Amount: " + str(self.amount))
+
+        self.card = flet.Card(
+            flet.Column(
+                [
+                    self.titleText,
+                    flet.Container(
+                        VerticalSplitter(
+                            left_pane=self.descriptionText,
+                            right_pane=flet.Column(
+                                [self.amountText, self.lastUpdatedText],
+                                alignment=flet.MainAxisAlignment.CENTER,
+                                horizontal_alignment=flet.CrossAxisAlignment.CENTER,
+                                expand=True,
+                            ),
+                            fixed_pane=FixedPane.RIGHT,
+                            height=80,
+                            fixed_pane_min_width=80,
+                        ),
+                        bgcolor=flet.colors.TERTIARY_CONTAINER,
+                        padding=10,
+                        margin=5,
+                        border_radius=10,
+                    ),
+                ],
+                spacing=0,
+            ),
+            margin=10,
+        )
+
+        self.controls = [
+            flet.TransparentPointer(self.card),
+            flet.TransparentPointer(
+                flet.Container(
+                    content=flet.FloatingActionButton(
+                        icon=flet.icons.DELETE, mini=True
+                    ),
+                    alignment=flet.alignment.top_left,
+                    expand=True,
+                    height=170,
+                )
+            ),
+            flet.TransparentPointer(
+                flet.Container(
+                    content=flet.Container(
+                        self.dateCreatedText,
+                        bgcolor=flet.colors.PRIMARY_CONTAINER,
+                        padding=5,
+                        border_radius=10,
+                    ),
+                    alignment=flet.alignment.bottom_left,
+                    expand=True,
+                    # bgcolor=flet.colors.YELLOW,
+                    height=168,
+                )
+            ),
+        ]
+
+        if self.type == "Credit":
+            self.card.color = flet.colors.GREEN_600
+        else:
+            self.card.color = flet.colors.RED_600
 
 
 class RecordList(flet.ListView):
     def __init__(self):
-        super().__init__(expand=True)
+        super().__init__(spacing=20, padding=10, expand=True)
+        self.controls.append(RecordTile("Credit", "Test", "Another Test"))
+        self.controls.append(RecordTile("Debit", "Test", "Another Test"))
 
 
 class RecordView(flet.View):
@@ -80,15 +135,16 @@ class RecordView(flet.View):
         self.list = RecordList()
         self.credit_button = flet.ElevatedButton(
             "Credit",
-            bgcolor=flet.colors.GREEN_ACCENT,
             color=flet.colors.BLACK,
+            bgcolor=flet.colors.GREEN_ACCENT,
             style=flet.ButtonStyle(shape=flet.RoundedRectangleBorder(radius=10)),
+            on_click=self.add_credit,
             expand=True,
         )
         self.debit_button = flet.ElevatedButton(
             "Debit",
-            bgcolor=flet.colors.RED_ACCENT,
             color=flet.colors.BLACK,
+            bgcolor=flet.colors.RED_ACCENT,
             style=flet.ButtonStyle(shape=flet.RoundedRectangleBorder(radius=10)),
             expand=True,
         )
@@ -109,6 +165,33 @@ class RecordView(flet.View):
             ),
         ]
 
+    def add_credit(self, e):
+        description = flet.TextField(
+            autofocus=True,
+            input_filter=flet.InputFilter(ALPHABETS_WITH_SPACE_RE),
+            label="Record Title",
+        )
+        amount = flet.TextField(
+            autofocus=True, input_filter=flet.InputFilter(DECIMALS_RE), label="Amount"
+        )
+
+        def credit(e):
+            if description.value.strip() and amount.value.strip():
+                self.page.close_dialog()
+            # await self.list.add_name(dlg_modal.content.value.strip())
+
+        dlg_modal = flet.AlertDialog(
+            title=flet.Text("Enter Details"),
+            content=flet.Column([description, amount], tight=True),
+            actions=[flet.TextButton("Confirm", on_click=credit)],
+            actions_alignment=flet.MainAxisAlignment.END,
+            open=True,
+        )
+        self.page.dialog = dlg_modal
+        self.page.update()
+
+    def add_record_debit(self, e): ...
+
 
 class NameTile(flet.Card):
     def __init__(self, name="Anon"):
@@ -127,12 +210,13 @@ class NameTile(flet.Card):
         self.name: str = name
         self.nameText = flet.Column(
             [
-                EditableText(
+                EditableDisplayText(
                     self,
                     "name",
                     text_theme_style=flet.TextThemeStyle.TITLE_LARGE,
-                    text_style=flet.TextStyle(22),
+                    field_size=22,
                     no_wrap=True,
+                    input_filter=flet.InputFilter(ALPHABETS_WITH_SPACE_RE),
                 )
             ],
             alignment=flet.MainAxisAlignment.CENTER,
@@ -256,6 +340,10 @@ class NameList(flet.ListView):
 
         self.route_manager: RouteManager = route_manager
 
+        tile = NameTile("HehE")
+        self.controls.append(tile)
+        self.route_manager.add_route(tile.view.route, tile.view)
+
     def loading_animation(func: Callable):
         async def add_loading(self, *args, **kwargs):
             self.page.overlay.append(
@@ -302,7 +390,7 @@ class NameView(flet.View):
         super().__init__(route=route, appbar=flet.AppBar(title=flet.Text(appbar_title)))
 
         self.floating_action_button = flet.FloatingActionButton(
-            "add", on_click=self.add_name
+            icon=flet.icons.ADD, on_click=self.add_name
         )
 
         self.route_manager: RouteManager = route_manager
@@ -314,15 +402,13 @@ class NameView(flet.View):
     async def add_name(self, e):
         async def close_dialog(e):
             if dlg_modal.content.value.strip():
-                self.page.dialog.open = False
-                self.page.update()
+                self.page.close_dialog()
                 await self.list.add_name(dlg_modal.content.value.strip())
 
         dlg_modal = flet.AlertDialog(
-            # modal=True,
             title=flet.Text("Enter Name"),
             content=flet.TextField(
-                input_filter=flet.InputFilter(r"[a-zA-Z ]"),
+                input_filter=flet.InputFilter(ALPHABETS_WITH_SPACE_RE),
                 text_style=flet.TextStyle(22),
                 on_submit=close_dialog,
                 autofocus=True,
@@ -338,10 +424,10 @@ class NameView(flet.View):
 async def main(page: flet.Page):
     page.theme_mode = flet.ThemeMode.DARK
     route_manager = RouteManager(page)
-    testView = NameView("/", route_manager, "Debt Machine")
+    test_view = NameView("/", route_manager, "Debt Machine")
     page.views.clear()
-    page.on_route_change = testView.route_manager.on_route_change
-    page.on_view_pop = testView.route_manager.on_view_pop
+    page.on_route_change = test_view.route_manager.on_route_change
+    page.on_view_pop = test_view.route_manager.on_view_pop
     page.go(page.route)
 
 
