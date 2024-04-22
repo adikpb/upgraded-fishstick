@@ -1,2 +1,1 @@
-from .editable_display_text import EditableDisplayText
-from .vertical_splitter import FixedPane, VerticalSplitter
+from .editable_display_text.editable_display_text import EditableDisplayText
