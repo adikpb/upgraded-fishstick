@@ -44,7 +44,12 @@ class RecordTile(flet.Stack):
             field=flet.TextField(
                 input_filter=flet.InputFilter(ALPHABETS_WITH_SPACE_RE),
             ),
-            wrapper=flet.Container(expand=False),
+            wrapper=flet.Container(
+                padding=5,
+                border_radius=5,
+                bgcolor=flet.colors.SECONDARY_CONTAINER,
+                expand=False,
+            ),
         )
 
         self.description: str = description
@@ -136,9 +141,9 @@ class RecordTile(flet.Stack):
         ]
 
         if self._type == "Credit":
-            self.card.color = flet.colors.GREEN_600
+            self.card.color = flet.colors.GREEN_ACCENT
         else:
-            self.card.color = flet.colors.RED_600
+            self.card.color = flet.colors.RED_ACCENT
 
     @property
     def amount(self):
@@ -203,12 +208,14 @@ class RecordView(flet.View):
         parent_tile,
         route: str | None = None,
         appbar: flet.AppBar | flet.CupertinoAppBar | None = None,
+        **kwargs,
     ):
         super().__init__(
             route=route,
             appbar=appbar,
             vertical_alignment=flet.MainAxisAlignment.END,
             padding=5,
+            **kwargs,
         )
 
         self.parent_tile = parent_tile
@@ -320,7 +327,7 @@ class RecordView(flet.View):
 
 class NameTile(flet.Card):
     def __init__(self, name="Anon"):
-        super().__init__()
+        super().__init__(color=flet.colors.ON_INVERSE_SURFACE)
         self.content = flet.Container(
             flet.ResponsiveRow(
                 alignment=flet.MainAxisAlignment.CENTER,
@@ -346,7 +353,9 @@ class NameTile(flet.Card):
             field=flet.TextField(
                 input_filter=flet.InputFilter(ALPHABETS_WITH_SPACE_RE),
             ),
-            wrapper=flet.Container(expand=False),
+            wrapper=flet.Container(
+                padding=flet.padding.only(left=25), alignment=flet.alignment.center
+            ),
         )
 
         self.transactionSummary = flet.Container(
@@ -373,8 +382,12 @@ class NameTile(flet.Card):
         self.debtSummary = flet.Container(
             content=flet.Column(
                 [
-                    flet.Text(color=flet.colors.RED_ACCENT),  # You Owe Them
-                    flet.Text(color=flet.colors.GREEN_ACCENT),  # They Owe You
+                    flet.Text(
+                        color=flet.colors.RED_ACCENT, italic=True
+                    ),  # You Owe Them
+                    flet.Text(
+                        color=flet.colors.GREEN_ACCENT, italic=True
+                    ),  # They Owe You
                     flet.Text(color=flet.colors.ON_SECONDARY_CONTAINER),  # Net Owed
                 ],
                 alignment=flet.MainAxisAlignment.CENTER,
@@ -403,10 +416,14 @@ class NameTile(flet.Card):
         self.content.content.controls.extend(
             [
                 self.nameText,
-                flet.Divider(leading_indent=10, trailing_indent=10),
+                flet.Divider(
+                    color=flet.colors.WHITE, leading_indent=10, trailing_indent=10
+                ),
                 self.transactionSummary,
                 self.debtSummary,
-                flet.Divider(leading_indent=10, trailing_indent=10),
+                flet.Divider(
+                    color=flet.colors.WHITE, leading_indent=10, trailing_indent=10
+                ),
                 self.deleteButton,
             ]
         )
@@ -414,7 +431,12 @@ class NameTile(flet.Card):
         self.view = RecordView(
             self,
             "/" + str(self.id),
-            appbar=flet.AppBar(title=flet.Text(self.name)),
+            appbar=flet.AppBar(
+                title=flet.Text(self.name, weight=flet.FontWeight.BOLD),
+                color=flet.colors.BLACK,
+                bgcolor="#9290c3",
+            ),
+            bgcolor=flet.colors.BACKGROUND,
         )
 
     @property
@@ -425,7 +447,7 @@ class NameTile(flet.Card):
     def name(self, val: str):
         self._name: str = val
         if hasattr(self, "view"):
-            self.view.appbar.title = flet.Text(val)
+            self.view.appbar.title.value = val
 
     @property
     def money_you_owe(self) -> Decimal:
@@ -517,8 +539,10 @@ class NameList(flet.ListView):
 
 
 class NameView(flet.View):
-    def __init__(self, route: str, route_manager: RouteManager, appbar_title: str):
-        super().__init__(route=route, appbar=flet.AppBar(title=flet.Text(appbar_title)))
+    def __init__(
+        self, route: str, route_manager: RouteManager, appbar: flet.AppBar, **kwargs
+    ):
+        super().__init__(route=route, appbar=appbar, **kwargs)
 
         self.floating_action_button = flet.FloatingActionButton(
             icon=flet.icons.ADD, on_click=self.add_name
@@ -553,13 +577,29 @@ class NameView(flet.View):
 
 
 async def main(page: flet.Page):
-    page.theme_mode = flet.ThemeMode.DARK
+    # page.theme_mode = flet.ThemeMode.DARK
     route_manager = RouteManager(page)
-    test_view = NameView("/", route_manager, "Debt Machine")
+    custom_color_scheme = flet.ColorScheme(
+        secondary_container="#535c91",
+        background="#070f2b",
+        on_inverse_surface="#1b1a55",
+    )
+    page.theme = flet.Theme(color_scheme=custom_color_scheme)
+    test_view = NameView(
+        "/",
+        route_manager,
+        flet.AppBar(
+            title=flet.Text("SettleUp", weight=flet.FontWeight.BOLD),
+            center_title=True,
+            color=flet.colors.BLACK,
+            bgcolor="#9290c3",
+        ),
+        bgcolor=flet.colors.BACKGROUND,
+    )
     page.views.clear()
     page.on_route_change = test_view.route_manager.on_route_change
     page.on_view_pop = test_view.route_manager.on_view_pop
     page.go(page.route)
 
 
-app: FastAPI | None = flet.app(main)
+app: FastAPI | None = flet.app(main, assets_dir="dt/assets")

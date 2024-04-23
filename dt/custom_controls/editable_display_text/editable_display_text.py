@@ -116,6 +116,7 @@ class EditableDisplayText(flet.Row):
             icon=flet.icons.EDIT,
             icon_size=self.field.text_size,
             on_click=self.edit_text,
+            icon_color=self.wrapper.bgcolor,
         )
         self.controls = [self.wrapper, self.action_button]
 
