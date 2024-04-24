@@ -11,7 +11,7 @@ from flet.fastapi.flet_fastapi import FastAPI
 from .custom_controls import EditableDisplayText
 from .routing import RouteManager
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 
 ALPHABETS_WITH_SPACE_RE = r"[a-zA-Z ]"
 DECIMALS_RE = r"[0-9.]"
@@ -42,6 +42,7 @@ class RecordTile(flet.Stack):
             field_size=15,
             text=self._titleText,
             field=flet.TextField(
+                autofocus=True,
                 input_filter=flet.InputFilter(ALPHABETS_WITH_SPACE_RE),
             ),
             wrapper=flet.Container(
@@ -56,24 +57,28 @@ class RecordTile(flet.Stack):
         self._descriptionText = flet.Text(
             theme_style=flet.TextThemeStyle.BODY_MEDIUM,
             no_wrap=False,
+            color=flet.colors.ON_TERTIARY_CONTAINER,
         )
         self.descriptionText = EditableDisplayText(
             obj=self,
             value_attribute="description",
             field_size=12,
             text=self._descriptionText,
-            field=flet.TextField(multiline=True),
+            field=flet.TextField(multiline=True, autofocus=True),
             wrapper=flet.Container(expand=True),
         )
 
         self.dateCreated: datetime = datetime.now()
         self.dateCreatedText = flet.Text(str(self.dateCreated))
 
-        self.lastUpdated: datetime = self.dateCreated
-        self.lastUpdatedText = flet.Text("Last Updated:" + str(self.lastUpdated))
-
-        self.amountText = flet.Text("Amount: ")
+        self.amountText = flet.Text("Amount: ", color=flet.colors.ON_TERTIARY_CONTAINER)
         self.amount: Decimal = amount
+
+        self.lastUpdated: datetime = self.dateCreated
+        self.lastUpdatedText = flet.Text(
+            "Last Updated:" + str(self.lastUpdated),
+            color=flet.colors.ON_TERTIARY_CONTAINER,
+        )
 
         self.card = flet.Card(
             flet.Column(
@@ -91,7 +96,7 @@ class RecordTile(flet.Stack):
                                 ),
                                 flet.VerticalDivider(),
                                 flet.Column(
-                                    [self.amountText, self.lastUpdatedText],
+                                    [self.amountText],  # , self.lastUpdatedText],
                                     alignment=flet.MainAxisAlignment.CENTER,
                                     horizontal_alignment=flet.CrossAxisAlignment.CENTER,
                                     expand=True,
@@ -118,7 +123,7 @@ class RecordTile(flet.Stack):
                     content=flet.FloatingActionButton(
                         icon=flet.icons.DELETE,
                         mini=True,
-                        on_click=self.remove_self,
+                        on_click=lambda e: self.page.run_task(self.remove_self, e),
                     ),
                     alignment=flet.alignment.top_left,
                     expand=True,
@@ -141,9 +146,9 @@ class RecordTile(flet.Stack):
         ]
 
         if self._type == "Credit":
-            self.card.color = flet.colors.GREEN_ACCENT
+            self.card.color = "#78d679"
         else:
-            self.card.color = flet.colors.RED_ACCENT
+            self.card.color = "#ff8597"
 
     @property
     def amount(self):
@@ -162,11 +167,23 @@ class RecordTile(flet.Stack):
         self._amount: Decimal = val
         self.amountText.value = "Amount: " + str(self._amount)
         if self.page:
+            self.view.parent_tile.update()
             self.page.update()
 
-    def remove_self(self, e):
+    @property
+    def dateCreated(self):
+        return self._dateCreated
+
+    @dateCreated.setter
+    def dateCreated(self, val: datetime):
+        self._dateCreated = val
+        if hasattr(self, "dateCreatedText"):
+            self.dateCreatedTex.valuet = str(val)
+        self.view.parent_tile.lastTransaction = val
+
+    async def remove_self(self, e):
         self.amount = 0
-        self.parent.remove_record(self)
+        await self.parent.remove_record(self)
 
 
 class RecordList(flet.ListView):
@@ -186,20 +203,48 @@ class RecordList(flet.ListView):
             RecordTile(self.parent, "Debit", "Test", "Another Test", Decimal("69.69"))
         )
 
-    def add_record(
+    def loading_animation(func: Callable):
+        async def add_loading(self, *args, **kwargs):
+            self.page.overlay.append(
+                flet.Container(
+                    content=flet.ProgressRing(),
+                    bgcolor=flet.colors.with_opacity(
+                        color=flet.colors.BLACK, opacity=0.5
+                    ),
+                    expand=True,
+                    alignment=flet.alignment.center,
+                )
+            )
+            self.page.update()
+
+            await func(self, *args, **kwargs)
+
+            self.page.overlay.clear()
+            self.page.update()
+
+        return add_loading
+
+    @loading_animation
+    async def add_record(
         self,
         type: Literal["Credit", "Debit"],
         title: str,
         description: str,
         amount: Decimal,
     ):
-        self.controls.append(RecordTile(self.parent, type, title, description, amount))
+        self.auto_scroll = True
+        tile = RecordTile(self.parent, type, title, description, amount)
+        self.controls.append(tile)
         self.parent.update()
+        self.auto_scroll = False
+        await asyncio.sleep(0.25)
 
-    def remove_record(self, tile: RecordTile):
+    @loading_animation
+    async def remove_record(self, tile: RecordTile):
         self.controls.remove(tile)
         del tile
         self.parent.update()
+        await asyncio.sleep(0.25)
 
 
 class RecordView(flet.View):
@@ -224,7 +269,7 @@ class RecordView(flet.View):
         self.credit_button = flet.ElevatedButton(
             "Credit",
             color=flet.colors.BLACK,
-            bgcolor=flet.colors.GREEN_ACCENT,
+            bgcolor="#78d679",
             style=flet.ButtonStyle(shape=flet.RoundedRectangleBorder(radius=10)),
             on_click=self.add_credit,
             expand=True,
@@ -232,7 +277,7 @@ class RecordView(flet.View):
         self.debit_button = flet.ElevatedButton(
             "Debit",
             color=flet.colors.BLACK,
-            bgcolor=flet.colors.RED_ACCENT,
+            bgcolor="#ff8597",
             style=flet.ButtonStyle(shape=flet.RoundedRectangleBorder(radius=10)),
             on_click=self.add_debit,
             expand=True,
@@ -247,7 +292,7 @@ class RecordView(flet.View):
                         self.debit_button,
                     ],
                 ),
-                bgcolor=flet.colors.PRIMARY_CONTAINER,
+                bgcolor=flet.colors.SECONDARY_CONTAINER,
                 padding=10,
                 height=50,
                 border_radius=20,
@@ -256,17 +301,20 @@ class RecordView(flet.View):
 
     def add_credit(self, e):
         title = flet.TextField(
-            input_filter=flet.InputFilter(ALPHABETS_WITH_SPACE_RE), label="Title"
+            autofocus=True,
+            input_filter=flet.InputFilter(ALPHABETS_WITH_SPACE_RE),
+            label="Title",
         )
         description = flet.TextField(
+            autofocus=True,
             multiline=True,
             label="Description",
         )
         amount = flet.TextField(
-            input_filter=flet.InputFilter(DECIMALS_RE), label="Amount"
+            autofocus=True, input_filter=flet.InputFilter(DECIMALS_RE), label="Amount"
         )
 
-        def credit(e):
+        async def credit(e):
             if all(
                 (
                     i := title.value.strip(),
@@ -275,7 +323,7 @@ class RecordView(flet.View):
                 )
             ):
                 self.page.close_dialog()
-                self.records.add_record(
+                await self.records.add_record(
                     type="Credit", title=i, description=j, amount=Decimal(k)
                 )
 
@@ -291,17 +339,20 @@ class RecordView(flet.View):
 
     def add_debit(self, e):
         title = flet.TextField(
-            input_filter=flet.InputFilter(ALPHABETS_WITH_SPACE_RE), label="Title"
+            autofocus=True,
+            input_filter=flet.InputFilter(ALPHABETS_WITH_SPACE_RE),
+            label="Title",
         )
         description = flet.TextField(
+            autofocus=True,
             multiline=True,
             label="Description",
         )
         amount = flet.TextField(
-            input_filter=flet.InputFilter(DECIMALS_RE), label="Amount"
+            autofocus=True, input_filter=flet.InputFilter(DECIMALS_RE), label="Amount"
         )
 
-        def debit(e):
+        async def debit(e):
             if all(
                 (
                     i := title.value.strip(),
@@ -310,7 +361,7 @@ class RecordView(flet.View):
                 )
             ):
                 self.page.close_dialog()
-                self.records.add_record(
+                await self.records.add_record(
                     type="Debit", title=i, description=j, amount=Decimal(k)
                 )
 
@@ -351,6 +402,7 @@ class NameTile(flet.Card):
             field_size=22,
             text=self._nameTitle,
             field=flet.TextField(
+                autofocus=True,
                 input_filter=flet.InputFilter(ALPHABETS_WITH_SPACE_RE),
             ),
             wrapper=flet.Container(
@@ -358,17 +410,20 @@ class NameTile(flet.Card):
             ),
         )
 
+        self.lastTransaction: datetime | int = 0
+        self.lastTransactionText = flet.Text(
+            "Last Transaction: " + str(self.lastTransaction),
+            color=flet.colors.ON_SECONDARY_CONTAINER,
+        )
+
         self.transactionSummary = flet.Container(
             content=flet.Column(
                 [
-                    flet.Text(
-                        "Last Updated:" + str(0),
-                        color=flet.colors.ON_SECONDARY_CONTAINER,
-                    ),
-                    flet.Text(
-                        "Last Transaction:" + str(0),
-                        color=flet.colors.ON_SECONDARY_CONTAINER,
-                    ),
+                    # flet.Text(
+                    #     "Last Updated:" + str(0),
+                    #     color=flet.colors.ON_SECONDARY_CONTAINER,
+                    # ),
+                    self.lastTransactionText,
                 ],
                 alignment=flet.MainAxisAlignment.CENTER,
                 horizontal_alignment=flet.CrossAxisAlignment.CENTER,
@@ -382,12 +437,8 @@ class NameTile(flet.Card):
         self.debtSummary = flet.Container(
             content=flet.Column(
                 [
-                    flet.Text(
-                        color=flet.colors.RED_ACCENT, italic=True
-                    ),  # You Owe Them
-                    flet.Text(
-                        color=flet.colors.GREEN_ACCENT, italic=True
-                    ),  # They Owe You
+                    flet.Text(color="#ff8597", italic=True),  # You Owe Them
+                    flet.Text(color="#78d679", italic=True),  # They Owe You
                     flet.Text(color=flet.colors.ON_SECONDARY_CONTAINER),  # Net Owed
                 ],
                 alignment=flet.MainAxisAlignment.CENTER,
@@ -434,7 +485,7 @@ class NameTile(flet.Card):
             appbar=flet.AppBar(
                 title=flet.Text(self.name, weight=flet.FontWeight.BOLD),
                 color=flet.colors.BLACK,
-                bgcolor="#9290c3",
+                bgcolor=flet.colors.SECONDARY_CONTAINER,
             ),
             bgcolor=flet.colors.BACKGROUND,
         )
@@ -448,6 +499,16 @@ class NameTile(flet.Card):
         self._name: str = val
         if hasattr(self, "view"):
             self.view.appbar.title.value = val
+
+    @property
+    def lastTransaction(self) -> datetime | int:
+        return self._lastTransaction
+
+    @lastTransaction.setter
+    def lastTransaction(self, val: datetime | int):
+        self._lastTransaction = val
+        if hasattr(self, "lastTransactionText"):
+            self.lastTransactionText.value = "Last Transaction: " + str(val)
 
     @property
     def money_you_owe(self) -> Decimal:
@@ -545,7 +606,9 @@ class NameView(flet.View):
         super().__init__(route=route, appbar=appbar, **kwargs)
 
         self.floating_action_button = flet.FloatingActionButton(
-            icon=flet.icons.ADD, on_click=self.add_name
+            icon=flet.icons.ADD,
+            on_click=self.add_name,
+            bgcolor=flet.colors.SECONDARY_CONTAINER,
         )
 
         self.route_manager: RouteManager = route_manager
@@ -577,10 +640,12 @@ class NameView(flet.View):
 
 
 async def main(page: flet.Page):
-    # page.theme_mode = flet.ThemeMode.DARK
+    page.theme_mode = flet.ThemeMode.DARK
     route_manager = RouteManager(page)
     custom_color_scheme = flet.ColorScheme(
+        primary_container="#9290c3",
         secondary_container="#535c91",
+        tertiary_container="#2c2a45",
         background="#070f2b",
         on_inverse_surface="#1b1a55",
     )
@@ -589,10 +654,15 @@ async def main(page: flet.Page):
         "/",
         route_manager,
         flet.AppBar(
+            leading=flet.Image(
+                "icon.png",
+                fit=flet.ImageFit.SCALE_DOWN,
+                filter_quality=flet.FilterQuality.HIGH,
+            ),
             title=flet.Text("SettleUp", weight=flet.FontWeight.BOLD),
             center_title=True,
             color=flet.colors.BLACK,
-            bgcolor="#9290c3",
+            bgcolor=flet.colors.SECONDARY_CONTAINER,
         ),
         bgcolor=flet.colors.BACKGROUND,
     )

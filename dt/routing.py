@@ -1,4 +1,3 @@
-from pprint import pprint
 from typing import Any
 
 from flet import Page, RouteChangeEvent, View
@@ -31,16 +30,11 @@ class RouteManager:
         self.routes.pop(route)
 
     async def on_route_change(self, route_event: RouteChangeEvent):
-        # print("\nRoute Change\n")
-        # print(self.page.route)
-        # pprint(self.as_dict())
-        # print("Before:", self.page.views)
         temp: list[View] = [i for i in self.page.views]
         self.page.views.clear()
         self.page.views.append(self.base_view)
         if self.page.route in self.routes and self.page.route != self.base_view.route:
             for i, j in enumerate(self.page.views):
-                # print(i, j, self.page.route)
                 if j.route == self.page.route:
                     self.page.views.clear()
                     self.page.views.extend(temp[: i + 1])
@@ -49,15 +43,10 @@ class RouteManager:
                 self.page.views.append(self.routes[self.page.route])
         else:
             self.page.route = self.base_view.route
-        # print("After:", self.page.views)
         self.page.update()
 
     def on_view_pop(self, view: View):
-        # print("\nPop View\n")
-        # pprint(self.as_dict())
-        # print(self.page.views)
         self.page.views.pop()
-        # print(self.page.views)
         top_view: View = self.page.views[-1]
         self.page.go(top_view.route)
         self.page.update()
