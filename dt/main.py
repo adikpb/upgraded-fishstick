@@ -190,18 +190,18 @@ class RecordList(flet.ListView):
     def __init__(self, parent):
         super().__init__(spacing=20, padding=10, expand=True)
         self.parent = parent
-        self.controls.append(
-            RecordTile(
-                self.parent,
-                "Credit",
-                "Test",
-                "Another TestAnother TestAnother TestAnother TestAnother TestAnother TestAnother TestAnother TestAnother TestAnother TestAnother TestAnother TestAnother TestAnother TestAnother TestAnother TestAnother TestAnother TestAnother TestAnother TestAnother TestAnother TestAnother TestAnother TestAnother TestAnother TestAnother TestAnother TestAnother TestAnother Test",
-                Decimal("69.69"),
-            )
-        )
-        self.controls.append(
-            RecordTile(self.parent, "Debit", "Test", "Another Test", Decimal("69.69"))
-        )
+        # self.controls.append(
+        #     RecordTile(
+        #         self.parent,
+        #         "Credit",
+        #         "Test",
+        #         "Another TestAnother TestAnother TestAnother TestAnother TestAnother TestAnother TestAnother TestAnother TestAnother TestAnother TestAnother TestAnother TestAnother TestAnother TestAnother TestAnother TestAnother TestAnother TestAnother TestAnother TestAnother TestAnother TestAnother TestAnother TestAnother TestAnother TestAnother TestAnother TestAnother Test",
+        #         Decimal("69.69"),
+        #     )
+        # )
+        # self.controls.append(
+        #     RecordTile(self.parent, "Debit", "Test", "Another Test", Decimal("69.69"))
+        # )
 
     def loading_animation(func: Callable):
         async def add_loading(self, *args, **kwargs):
@@ -406,7 +406,7 @@ class NameTile(flet.Card):
                 input_filter=flet.InputFilter(ALPHABETS_WITH_SPACE_RE),
             ),
             wrapper=flet.Container(
-                padding=flet.padding.only(left=25), alignment=flet.alignment.center
+                padding=flet.padding.only(left=35), alignment=flet.alignment.center
             ),
         )
 
@@ -554,9 +554,9 @@ class NameList(flet.ListView):
 
         self.route_manager: RouteManager = route_manager
 
-        tile = NameTile("HehE")
-        self.controls.append(tile)
-        self.route_manager.add_route(tile.view.route, tile.view)
+        # tile = NameTile("HehE")
+        # self.controls.append(tile)
+        # self.route_manager.add_route(tile.view.route, tile.view)
 
     def loading_animation(func: Callable):
         async def add_loading(self, *args, **kwargs):
